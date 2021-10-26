@@ -239,6 +239,21 @@ func RunAppsCreate(c *CmdConfig) error {
 		return err
 	}
 
+	// Special check for serverless clause.  This can't be handled in the usual way by the platform via
+	// godo because there is no support for it there.  Instead, as a temp kluge, we call out to 'nim' locally
+	// to deploy the actions.   We can deploy from github for consistency with the rest of the app tree but
+	// also locally.
+	if len(appSpec.Serverless) > 0 {
+		output, err := deployServerless(appSpec.Serverless)
+		if err != nil {
+			return err
+		}
+		// Not clear that just printing the nim output is "right", but, for now ...
+		fmt.Fprint(c.Out, output)
+		// Remove the clause from the spec so it doesn't confuse any other part of the process.
+		appSpec.Serverless = []*godo.AppServerlessSpec{}
+	}
+
 	upsert, err := c.Doit.GetBool(c.NS, doctl.ArgCommandUpsert)
 	if err != nil {
 		return err
