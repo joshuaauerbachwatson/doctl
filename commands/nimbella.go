@@ -36,7 +36,7 @@ func deployServerless(projects []*godo.AppServerlessSpec) (string, error) {
 		nimProjects = append(nimProjects, nimProject)
 	}
 	args := append([]string{"project", "deploy", "--exclude", "web"}, nimProjects...)
-	return runNim(args)
+	return runNim(args...)
 }
 
 // Function to convert a godo.AppServerlessSpec to a concrete project location that 'nim' can deploy
@@ -90,6 +90,46 @@ func localProject(spec *godo.LocalSourceSpec, sourceDir string) (string, error) 
 	}
 }
 
+// Get the "serverless URL" (the URL for invoking actions in the current namespace).  Somewhat confusingly, 'nim'
+// provides this using '--web' flag.  This is historical, and not really wrong in that, in Nimbella, the static
+// web assets are at the same URL.
+func getServerlessURL() (string, error) {
+	return runNim("auth", "current", "--web")
+}
+
+// Update the static sites portion of an app spec with the current serverless URL.  This is done by adding
+// a build-time environment variable called SERVERLESS_URL to each static site found.
+func addServerlessURLToStaticSites(sites []*godo.AppStaticSiteSpec) error {
+	url, err := getServerlessURL()
+	if err != nil {
+		return err
+	}
+	for _, site := range sites {
+		site.Envs, err = addURLToSite(url, site.Envs)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Insert a new SERVERLESS_URL environment variable in an 'envs' array (or modify an existing one)
+func addURLToSite(url string, envs []*godo.AppVariableDefinition) ([]*godo.AppVariableDefinition, error) {
+	// First see if the variable is already there; if so, that's an error.
+	for _, env := range envs {
+		if env.Key == "SERVERLESS_URL" {
+			return envs, errors.New("Unable to add serverless URL to static site because the variable has a conflicting use")
+		}
+	}
+	// Not there, so add one.
+	newEnv := godo.AppVariableDefinition{
+		Key:   "SERVERLESS_URL",
+		Value: url,
+		Scope: godo.AppVariableScope_BuildTime,
+		Type:  godo.AppVariableType_General}
+	return append(envs, &newEnv), nil
+}
+
 // For use with doctl, we currently assume a special installation of 'nim' in ~/.nimbella/cli.
 // The install procedure for this is unclear in the long run.  Basically an install tarball for
 // nimbella-cli needs to be unpacked there and then a 'nim login' run to set minimal credentials
@@ -107,9 +147,8 @@ func getNimPath() (string, error) {
 	return path, nil
 }
 
-// Function to run any 'nim' command.  Currently used by deployServerless but can be used to expose parts
-// of the 'nim' command tree as subcommands of doctl.
-func runNim(args []string) (string, error) {
+// Function to run any 'nim' command.
+func runNim(args ...string) (string, error) {
 	nim, err := getNimPath()
 	if err != nil {
 		return "", err

@@ -252,6 +252,8 @@ func RunAppsCreate(c *CmdConfig) error {
 		fmt.Fprint(c.Out, output)
 		// Remove the clause from the spec so it doesn't confuse any other part of the process.
 		appSpec.Serverless = []*godo.AppServerlessSpec{}
+		// Make the serverless URL available to static sites, if any
+		addServerlessURLToStaticSites(appSpec.StaticSites)
 	}
 
 	upsert, err := c.Doit.GetBool(c.NS, doctl.ArgCommandUpsert)
