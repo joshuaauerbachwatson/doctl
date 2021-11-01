@@ -149,6 +149,7 @@ func addCommands() {
 	DoitCmd.AddCommand(VPCs())
 	DoitCmd.AddCommand(OneClicks())
 	DoitCmd.AddCommand(Monitoring())
+	Nim(DoitCmd) // Different syntax because 'nim' is both top level and argument-owning
 }
 
 func computeCmd() *Command {
