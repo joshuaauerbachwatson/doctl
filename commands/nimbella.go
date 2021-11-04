@@ -176,13 +176,21 @@ func runNim(args ...string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	output, err := exec.Command(nim, args...).CombinedOutput()
-	return string(output), err
+	output, err := exec.Command(nim, args...).Output()
+	combinedOutput := string(output)
+	if err != nil {
+		exitErr, ok := err.(*exec.ExitError)
+		if ok {
+			combinedOutput += string(exitErr.Stderr)
+		}
+		return combinedOutput, err
+	}
+	return combinedOutput, nil
 }
 
-// A 'nim' subcommand of doctl.  Probably not exactly what we want but tailoring can be done by growing the
-// doctl-based part of the subtree so as to only selectively expose nim commands; also, the textual string
-// 'nim' could be hidden.
+// A 'nim' subcommand of doctl.  Perhaps not exactly what DO would end up exposing, 
+// but shows what could be done.  More likely, selected parts of the doctl logic would 
+// invoke 'nim' as needed.
 func Nim(cmd *Command) *Command {
 	return cmdBuilderWithInit(cmd, RunNimStub, "nim", "Run commands from Nimbella CLI",
 		"The `doctl nim` command runs commands that were formerly available via the Nimbella CLI",
@@ -192,9 +200,6 @@ func Nim(cmd *Command) *Command {
 
 func RunNimStub(c *CmdConfig) error {
 	output, err := runNim(c.Args...)
-	if err != nil {
-		return err
-	}
 	fmt.Print(output)
-	return nil
+	return err
 }
